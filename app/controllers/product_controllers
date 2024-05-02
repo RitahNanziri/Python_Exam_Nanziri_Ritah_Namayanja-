@@ -1,0 +1,94 @@
+from flask import Flask, Blueprint, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import jwt_required,get_jwt_identity,JWTManager
+from app.models.product import product
+from app import db
+
+
+
+
+product = Blueprint('product', __name__, url_prefix='/api/v1/product')
+
+
+
+# Registering all products
+@product.route('/products/', methods=['GET'])
+def get_all_products():
+    
+    products = product.query.all()  
+    output = []  
+    for product in products:
+        # Creating a dictionary containing user data
+        user_data = {
+            'name': product.name,
+            'price': product.price,
+            'description': product.description,
+            'origin': product.origin,
+            
+        }
+        output.append(user_data) 
+    return jsonify({'users': output}) 
+
+
+
+
+
+# Register a product
+@product.route('/product', methods=['POST'])
+def register_product():
+    try:
+        # Extracting request data
+        name = request.json.get('name')
+        description = request.json.get('description')
+        price = request.json.get('price')
+        origin = request.json.get('origin')
+
+        # Basic input validation
+        if not all([name, description, price, origin]):
+            return jsonify({"error": 'All fields are required'}), 400
+
+        # Creating a new product
+        new_product = product(
+            name=name,
+            description=description,
+            price=float(price),
+            origin=origin,
+        )
+
+        # Adding and committing to the database
+        db.session.add(new_product)
+        db.session.commit()
+
+        # Return product details in response
+        product_details = {
+            'name': new_product.name,
+            'description': new_product.description,
+            'price': new_product.price,
+            'origin': new_product.origin,
+        }
+
+        # Building a response message
+        return jsonify({"message": f"Product '{new_product.name}' registered", "product": product_details}), 201
+
+    except Exception as e:
+        # Handle exceptions appropriately
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
+
+
+# Delete a product
+@product.route('/product/<int:id>', methods=['DELETE'])
+def delete_product(id):
+    try:
+        product_item = product.query.get_or_404(id)
+        db.session.delete(product_item)
+        db.session.commit()
+        return jsonify({'message': 'Product deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete product', 'details': str(e)}), 500
